@@ -69,7 +69,7 @@ jobs:
           UnityHubSetup.exe
           UnityHubSetup.dmg
           checksums.txt
-        tag_name: "Unity Hub v${{ steps.get_metadata.outputs.combined_version }}"
+        tag_name: "V${{ steps.get_metadata.outputs.combined_version }}"
         name: "Unity Hub ${{ steps.get_metadata.outputs.win_version }} (Win) / ${{ steps.get_metadata.outputs.mac_version }} (Mac)"
         body: |
           ### Unity Hub v${{ steps.get_metadata.outputs.combined_version }} 发布
