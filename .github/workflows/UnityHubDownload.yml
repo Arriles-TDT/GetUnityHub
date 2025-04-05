@@ -59,7 +59,7 @@ jobs:
           echo "UPDATE_RELEASE=true" >> $GITHUB_OUTPUT
         else
           echo "UPDATE_RELEASE=false" >> $GITHUB_OUTPUT
-          echo "版本未变化，无需更新 Release"
+          echo "版本未变化!"
         fi
 
     - name: 发布 Unity Hub
@@ -74,4 +74,4 @@ jobs:
         body: |
           Unity Hub 安装包自动更新
           - Windows MD5: ${{ steps.compute_md5.outputs.EXE_MD5 }}
-          - macOS MD5: ${{ steps.compute_md5.outputs.DMG_MD5 }}
+          - MacOS MD5: ${{ steps.compute_md5.outputs.DMG_MD5 }}
