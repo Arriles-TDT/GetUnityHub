@@ -1,22 +1,22 @@
-name: UnityHub Installer Download
+name: UnityHub Installer Auto-Update
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '00 23 * * *'
+    - cron: '00 23 * * *'  # Daily at 23:00 UTC
 
 permissions:
   contents: write
 
 jobs:
-  download_installer:
+  check-and-update:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: 获取当前 Release 的 MD5
+    - name: Check existing release MD5
       id: check_release
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -31,13 +31,13 @@ jobs:
           fi
         fi
 
-    - name: 下载 Unity Hub 安装包
+    - name: Download latest installers
       if: steps.check_release.outputs.CURRENT_EXE_MD5 == '' || steps.check_release.outputs.CURRENT_DMG_MD5 == ''
       run: |
-        curl -o UnityHubSetup.exe "https://public-cdn.cloud.unity3d.com/hub/prod/UnityHubSetup.exe"
-        curl -o UnityHubSetup.dmg "https://public-cdn.cloud.unity3d.com/hub/prod/UnityHubSetup.dmg"
+        curl -sSL -o UnityHubSetup.exe "https://public-cdn.cloud.unity3d.com/hub/prod/UnityHubSetup.exe"
+        curl -sSL -o UnityHubSetup.dmg "https://public-cdn.cloud.unity3d.com/hub/prod/UnityHubSetup.dmg"
 
-    - name: 计算 MD5
+    - name: Calculate MD5 checksums
       id: compute_md5
       run: |
         EXE_MD5=$(md5sum UnityHubSetup.exe | cut -d' ' -f1)
@@ -47,18 +47,21 @@ jobs:
         echo "$EXE_MD5 UnityHubSetup.exe" > MD5SUMS
         echo "$DMG_MD5 UnityHubSetup.dmg" >> MD5SUMS
 
-    - name: 检查是否需要更新 Release
-      id: check_update
+    - name: Verify changes
+      id: verify_changes
       run: |
-        if [[ "${{ steps.check_release.outputs.CURRENT_EXE_MD5 }}" != "${{ steps.compute_md5.outputs.EXE_MD5 }}" ]] || \
-           [[ "${{ steps.check_release.outputs.CURRENT_DMG_MD5 }}" != "${{ steps.compute_md5.outputs.DMG_MD5 }}" ]]; then
-          echo "UPDATE_RELEASE=true" >> $GITHUB_OUTPUT
+        if [[ "${{ steps.check_release.outputs.CURRENT_EXE_MD5 }}" == "${{ steps.compute_md5.outputs.EXE_MD5 }}" ]] && \
+           [[ "${{ steps.check_release.outputs.CURRENT_DMG_MD5 }}" == "${{ steps.compute_md5.outputs.DMG_MD5 }}" ]]; then
+          echo "::notice::Installers unchanged. Terminating workflow."
+          echo "NEEDS_UPDATE=false" >> $GITHUB_OUTPUT
+          exit 0
         else
-          echo "UPDATE_RELEASE=false" >> $GITHUB_OUTPUT
+          echo "::notice::New installer versions detected."
+          echo "NEEDS_UPDATE=true" >> $GITHUB_OUTPUT
         fi
 
-    - name: 发布 Unity Hub
-      if: steps.check_update.outputs.UPDATE_RELEASE == 'true'
+    - name: Create new release
+      if: steps.verify_changes.outputs.NEEDS_UPDATE == 'true'
       uses: softprops/action-gh-release@v2
       with:
         files: |
@@ -67,6 +70,7 @@ jobs:
           MD5SUMS
         tag_name: UnityHub
         body: |
-          ## Unity Hub 安装包发布
-          - Windows MD5 : `${{ steps.compute_md5.outputs.EXE_MD5 }}`
-          - MacOS MD5 : `${{ steps.compute_md5.outputs.DMG_MD5 }}`
+          ## Unity Hub Installers
+          ### File Checksums
+          - Windows MD5: `${{ steps.compute_md5.outputs.EXE_MD5 }}`
+          - macOS MD5: `${{ steps.compute_md5.outputs.DMG_MD5 }}`
