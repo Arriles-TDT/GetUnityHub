@@ -21,10 +21,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        # 检查是否存在 UnityHub 标签的 Release
         if gh release view unityhub --json assets &> /dev/null; then
-          # 获取已发布的文件 MD5
-          echo "Checking existing release..."
           gh release download unityhub --pattern "MD5SUMS"
           if [ -f "MD5SUMS" ]; then
             CURRENT_EXE_MD5=$(grep "UnityHubSetup.exe" MD5SUMS | cut -d' ' -f1)
@@ -47,7 +44,6 @@ jobs:
         DMG_MD5=$(md5sum UnityHubSetup.dmg | cut -d' ' -f1)
         echo "EXE_MD5=$EXE_MD5" >> $GITHUB_OUTPUT
         echo "DMG_MD5=$DMG_MD5" >> $GITHUB_OUTPUT
-        # 生成 MD5SUMS 文件
         echo "$EXE_MD5 UnityHubSetup.exe" > MD5SUMS
         echo "$DMG_MD5 UnityHubSetup.dmg" >> MD5SUMS
 
@@ -59,19 +55,7 @@ jobs:
           echo "UPDATE_RELEASE=true" >> $GITHUB_OUTPUT
         else
           echo "UPDATE_RELEASE=false" >> $GITHUB_OUTPUT
-          echo "版本未变化!"
         fi
-
-    - name: 获取工作流执行时间
-      id: get_end_time
-      env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-          response=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID")
-          end_time=$(echo "$response" | jq -r '.updated_at')
-          echo "Workflow ended at: $end_time"
-          echo "end_time=$end_time" >> $GITHUB_OUTPUT
 
     - name: 发布 Unity Hub
       if: steps.check_update.outputs.UPDATE_RELEASE == 'true'
@@ -84,6 +68,5 @@ jobs:
         tag_name: UnityHub
         body: |
           ## Unity Hub 安装包发布
-          完成于 : ${{ steps.get_end_time.outputs.end_time }}
           - Windows MD5 : `${{ steps.compute_md5.outputs.EXE_MD5 }}`
           - MacOS MD5 : `${{ steps.compute_md5.outputs.DMG_MD5 }}`
