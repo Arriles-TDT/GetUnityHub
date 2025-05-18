@@ -1,76 +1,32 @@
-name: UnityHub Installer Auto-Update
+name: UnityHub Installer Download
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '00 23 * * *'  # Daily at 23:00 UTC
+    - cron: '00 23 * * *'
 
 permissions:
   contents: write
 
 jobs:
-  check-and-update:
+  download_installer:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Check existing release MD5
-      id: check_release
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: 下载Unity Hub安装介质
       run: |
-        if gh release view unityhub --json assets &> /dev/null; then
-          gh release download unityhub --pattern "MD5SUMS"
-          if [ -f "MD5SUMS" ]; then
-            CURRENT_EXE_MD5=$(grep "UnityHubSetup.exe" MD5SUMS | cut -d' ' -f1)
-            CURRENT_DMG_MD5=$(grep "UnityHubSetup.dmg" MD5SUMS | cut -d' ' -f1)
-            echo "CURRENT_EXE_MD5=$CURRENT_EXE_MD5" >> $GITHUB_OUTPUT
-            echo "CURRENT_DMG_MD5=$CURRENT_DMG_MD5" >> $GITHUB_OUTPUT
-          fi
-        fi
+         curl -sSL -o UnityHubSetup.exe "https://public-cdn.cloud.unity3d.com/hub/prod/UnityHubSetup.exe"
+         curl -sSL -o UnityHubSetup.dmg "https://public-cdn.cloud.unity3d.com/hub/prod/UnityHubSetup.dmg"
+         curl -sSL -o UnityHubSetupBeta-arm64.dmg "https://public-cdn.cloud.unity3d.com/hub/prod/UnityHubSetupBeta-arm64.dmg"
 
-    - name: Download latest installers
-      if: steps.check_release.outputs.CURRENT_EXE_MD5 == '' || steps.check_release.outputs.CURRENT_DMG_MD5 == ''
-      run: |
-        curl -sSL -o UnityHubSetup.exe "https://public-cdn.cloud.unity3d.com/hub/prod/UnityHubSetup.exe"
-        curl -sSL -o UnityHubSetup.dmg "https://public-cdn.cloud.unity3d.com/hub/prod/UnityHubSetup.dmg"
-
-    - name: Calculate MD5 checksums
-      id: compute_md5
-      run: |
-        EXE_MD5=$(md5sum UnityHubSetup.exe | cut -d' ' -f1)
-        DMG_MD5=$(md5sum UnityHubSetup.dmg | cut -d' ' -f1)
-        echo "EXE_MD5=$EXE_MD5" >> $GITHUB_OUTPUT
-        echo "DMG_MD5=$DMG_MD5" >> $GITHUB_OUTPUT
-        echo "$EXE_MD5 UnityHubSetup.exe" > MD5SUMS
-        echo "$DMG_MD5 UnityHubSetup.dmg" >> MD5SUMS
-
-    - name: Verify changes
-      id: verify_changes
-      run: |
-        if [[ "${{ steps.check_release.outputs.CURRENT_EXE_MD5 }}" == "${{ steps.compute_md5.outputs.EXE_MD5 }}" ]] && \
-           [[ "${{ steps.check_release.outputs.CURRENT_DMG_MD5 }}" == "${{ steps.compute_md5.outputs.DMG_MD5 }}" ]]; then
-          echo "::notice::Installers unchanged. Terminating workflow."
-          echo "NEEDS_UPDATE=false" >> $GITHUB_OUTPUT
-          exit 0
-        else
-          echo "::notice::New installer versions detected."
-          echo "NEEDS_UPDATE=true" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Create new release
-      if: steps.verify_changes.outputs.NEEDS_UPDATE == 'true'
+    - name: 发布Unity Hub
       uses: softprops/action-gh-release@v2
       with:
         files: |
           UnityHubSetup.exe
           UnityHubSetup.dmg
-          MD5SUMS
-        tag_name: UnityHub
-        body: |
-          ## Unity Hub Installers
-          ### File Checksums
-          - Windows MD5: `${{ steps.compute_md5.outputs.EXE_MD5 }}`
-          - macOS MD5: `${{ steps.compute_md5.outputs.DMG_MD5 }}`
+          UnityHubSetupBeta-arm64.dmg
+        tag_name: unityhub
